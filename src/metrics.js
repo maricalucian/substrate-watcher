@@ -19,7 +19,7 @@ const createMetrics = (client) => ({
     polkastake_era_reward: new client.Gauge({
         name: 'polkastake_era_reward',
         help: 'polkastake_era_reward',
-        labelNames: ['era', 'type'],
+        labelNames: ['type'],
     }),
 
     polkastake_validator_count: new client.Gauge({

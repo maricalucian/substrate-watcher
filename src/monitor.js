@@ -53,8 +53,8 @@ const getData = async (api) => {
     const rewardQuota =
         (rewardPointsLastEra[config.address] ? rewardPointsLastEra[config.address] : 0) /
         rewardDataLastEra.get('total').toNumber();
-    polkastake_era_reward.set({ era: lastEra, type: 'own' }, lastEraRewardTotal * rewardQuota);
-    polkastake_era_reward.set({ era: lastEra, type: 'total' }, lastEraRewardTotal);
+    polkastake_era_reward.set({ type: 'own' }, lastEraRewardTotal * rewardQuota);
+    polkastake_era_reward.set({ type: 'total' }, lastEraRewardTotal);
 
     // validators count
     const validatorCount = await api.query.staking.validatorCount().then((data) => data.toNumber());
