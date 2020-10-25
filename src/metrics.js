@@ -4,6 +4,12 @@ const createMetrics = (client) => ({
         help: 'polkastake_reward_points',
         labelNames: ['type'],
     }),
+    
+    polkastake_validator_balance: new client.Gauge({
+        name: 'polkastake_validator_balance',
+        help: 'polkastake_validator_balance',
+        labelNames: ['type'],
+    }),
 
     polkastake_active_era: new client.Gauge({
         name: 'polkastake_active_era',
