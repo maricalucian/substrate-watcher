@@ -67,6 +67,13 @@ const populateRewardsPreviousDay = async (api, addresses, day, firstEra) => {
         });
     }
 
+    let sum = 0;
+    addresses.forEach(address => {
+        sum += dayTotal[address];
+    })
+
+    dayTotal['total'] = sum;
+
     rewardHistoryArray[day] = dayTotal;
 }
 
@@ -126,7 +133,6 @@ const getData = async (api) => {
 
     // polkastake_validator_balance.set({ type: 'free' }, balance.free.div(divider).toNumber() / 1000);
     // polkastake_validator_balance.set({ type: 'frozen' }, balance.miscFrozen.div(divider).toNumber() / 1000);
-
     const lastEra = activeEra - 1;
     polkastake_active_era.set(activeEra);
 
@@ -161,6 +167,7 @@ const getData = async (api) => {
     addresses.forEach(address => {
         polkastake_earning_prev_day.set({ address }, rewardHistoryArray[lastDayText][address]);
     });
+    polkastake_earning_prev_day.set({ address: 'total' }, rewardHistoryArray[lastDayText]['total']);
 };
 
 module.exports = {
