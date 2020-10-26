@@ -1,26 +1,15 @@
 const { ApiPromise, WsProvider } = require('@polkadot/api');
-const { createMetrics } = require('./metrics');
-const BN = require('bn.js');
-const client = require('prom-client');
 const { config } = require('./config');
 const moment = require('moment'); // require
-const divider = new BN(config.dividend, 10);
-
-// yeah, this will grow forever... on record a day
-const rewardHistoryArray = [];
+const hostname = 'polka_ade';
+const { getDailyReward } = require('./data/previous_day_reward');
+const { getActiveEra } = require('./data/active_era');
+const { getRewardPointsActiveEra } = require('./data/reward_points_active_era');
+const { getStaking } = require('./data/staking');
+const { getRewardLastEra } = require('./data/rewards_last_era');
+const { influx } = require('./influx/connection');
 
 const addresses = config.addresses;
-
-const {
-    polkastake_reward_points,
-    polkastake_active_era,
-    polkastake_staking,
-    polkastake_era_reward,
-    polkastake_validator_count,
-    polkastake_validator_balance,
-    polkastake_earning_prev_day
-} = createMetrics(client);
-
 const wsProvider = new WsProvider(config.provider);
 
 const startMonitoring = async () => {
@@ -32,142 +21,73 @@ const startMonitoring = async () => {
     }, 1000 * config.poolingInterval);
 };
 
-const getEraReward = async (api, addresses, era) => {
-    const lastEraRewardTotal = await api.query.staking
-        .erasValidatorReward(era)
-        .then((data) => { 
-            const totalBn = new BN(data.toString());
-            return totalBn.div(divider).toNumber() / 1000
-        });
-
-    const rewardDataLastEra = await api.query.staking.erasRewardPoints(era);
-    const rewardPointsLastEra = rewardDataLastEra.get('individual').toJSON();
-
-    const reward = {};
-
-    addresses.forEach(address => {
-        const rewardQuota =
-            (rewardPointsLastEra[address] ? rewardPointsLastEra[address] : 0) /
-            rewardDataLastEra.get('total').toNumber();
-        reward[address] = (lastEraRewardTotal * rewardQuota) / 10;    
-    })
-    return reward;
-}
-
-const populateRewardsPreviousDay = async (api, addresses, day, firstEra) => {
-    let dayTotal = {};
-
-    for(let i = 0; i < 4; i++) {
-        const reward = await getEraReward(api, addresses, firstEra + i);
-        addresses.forEach(address => {
-            if(!dayTotal[address]) {
-                dayTotal[address] = 0;
-            } 
-            dayTotal[address] += reward[address];
-        });
-    }
-
-    let sum = 0;
-    addresses.forEach(address => {
-        sum += dayTotal[address];
-    })
-
-    dayTotal['total'] = sum;
-
-    rewardHistoryArray[day] = dayTotal;
-}
-
-const getRewardPointsActiveEra = async (api, activeEra, address) => {
-    const rewardData = await api.query.staking.erasRewardPoints(activeEra);
-    const rewardPoints = rewardData.get('individual').toJSON();
-    polkastake_reward_points.set({ type: 'own', address }, rewardPoints[address] || 0);
-    polkastake_reward_points.set({ type: 'total', address }, rewardData.get('total').toNumber());
-}
-
-const getStaking = async (api, activeEra, address) => {
-    const stakers = await api.query.staking.erasStakers(activeEra, address);
-    const stakeValTotal = stakers.get('total').toBn().div(divider).toNumber() / 1000;
-    const stakeValOwn = stakers.get('own').toBn().div(divider).toNumber() / 1000;
-    polkastake_staking.set({ type: 'own', address }, stakeValOwn);
-    polkastake_staking.set({ type: 'total', address }, stakeValTotal);
-    polkastake_staking.set({ type: 'others', address }, stakeValTotal - stakeValOwn);
-}
-
-const getRewardLastEra = async (api, lastEra, rewardDataLastEra, lastEraRewardTotal, address) => {
-    const rewardPointsLastEra = rewardDataLastEra.get('individual').toJSON();
-    const rewardQuota =
-        (rewardPointsLastEra[address] ? rewardPointsLastEra[address] : 0) /
-        rewardDataLastEra.get('total').toNumber();
-    polkastake_era_reward.set({ type: 'earning', address }, (lastEraRewardTotal * rewardQuota / 10 ));
-    polkastake_era_reward.set({ type: 'own', address }, lastEraRewardTotal * rewardQuota);
-    polkastake_era_reward.set({ type: 'total', address }, lastEraRewardTotal);
-}
-
 const getData = async (api) => {
+    const influxMetrics = [];
+
     // active era
-    const { activeEra, ts } = await api.query.staking.activeEra().then((data) => { 
-        const ts = data.unwrap().start.toString();
-        return  {
-            activeEra: data.unwrap().index.toNumber(),
-            ts
-        }
+    const { activeEra, ts } = await getActiveEra(api);
+
+    influxMetrics.push({
+        measurement: 'active_era',
+        tags: { host: hostname },
+        fields: { era: activeEra },
     });
 
+    // daily earnings (previous day)
     const currentEraDate = moment(parseInt(ts));
-    const lastFullDate = moment(currentEraDate);
-    const lastDayText = lastFullDate.subtract(1, 'days').format("YYYY-MM-DD");
-    
-    if (!rewardHistoryArray[lastDayText]) {
-        let i = 1;
-        while(i <= 4) {
-            if(currentEraDate.subtract(6, 'hours').isSameOrBefore(lastDayText, 'day')) {
-                break;
-            }
-            i++;
-        }
-        
-        await populateRewardsPreviousDay(api, addresses, lastDayText, activeEra - i - 3);
+    const lastDayText = currentEraDate.subtract(1, 'days').format('YYYY-MM-DD');
+
+    const reward = await getDailyReward(api, config.addresses, lastDayText);
+
+    addresses.forEach(address => {
+        influxMetrics.push({
+            measurement: 'daily_earnings',
+            tags: { host: hostname, address },
+            fields: { ksm: reward[address] },
+        });
+    })
+
+    // // const { nonce, data: balance } = await api.query.system.account(config.address);
+
+    // reward points active era
+    for (const address of addresses) {
+        const reward = await getRewardPointsActiveEra(api, activeEra, address);
+
+        influxMetrics.push({
+            measurement: 'points_active_era',
+            tags: { host: hostname, address },
+            fields: { own: reward['own'], total: reward['total'] },
+        });
     }
 
-    // const { nonce, data: balance } = await api.query.system.account(config.address);
+    // staking
+    for (const address of addresses) {
+        const stake = await getStaking(api, activeEra, address);
 
-    // polkastake_validator_balance.set({ type: 'free' }, balance.free.div(divider).toNumber() / 1000);
-    // polkastake_validator_balance.set({ type: 'frozen' }, balance.miscFrozen.div(divider).toNumber() / 1000);
-    const lastEra = activeEra - 1;
-    polkastake_active_era.set(activeEra);
-
-    // // // reward points
-    addresses.forEach(address => {
-        getRewardPointsActiveEra(api, activeEra, address);
-    });
-
-    // // // staking
-    addresses.forEach(address => {
-        getStaking(api, activeEra, address);
-    });
-
-    // // last era reward tokens
-    const lastEraRewardTotal = await api.query.staking
-        .erasValidatorReward(lastEra)
-        .then((data) => { 
-            const totalBn = new BN(data.toString());
-            return totalBn.div(divider).toNumber() / 1000
+        influxMetrics.push({
+            measurement: 'staking',
+            tags: { host: hostname, address },
+            fields: { own: stake['own'], others: stake['others'], total: stake['total'] },
         });
-    const rewardDataLastEra = await api.query.staking.erasRewardPoints(lastEra);
+    }
+
+    // last era reward
+    const rewardsLastEra = await getRewardLastEra(api, activeEra - 1, addresses);
     addresses.forEach(address => {
-        getRewardLastEra(api, lastEra, rewardDataLastEra, lastEraRewardTotal, address);
-    });
+        influxMetrics.push({
+            measurement: 'reward_last_era',
+            tags: { host: hostname, address },
+            fields: { earning: rewardsLastEra[address].earning, own: rewardsLastEra[address].own, total: rewardsLastEra[address].total },
+        });
+    })
 
-    // // // validators count
-    const validatorCount = await api.query.staking.validatorCount().then((data) => data.toNumber());
-    polkastake_validator_count.set(validatorCount);
+    // validators count
+    // const validatorCount = await api.query.staking.validatorCount().then((data) => data.toNumber());
+    // polkastake_validator_count.set(validatorCount);
 
-
-    // reward previous day
-    addresses.forEach(address => {
-        polkastake_earning_prev_day.set({ address }, rewardHistoryArray[lastDayText][address]);
-    });
-    polkastake_earning_prev_day.set({ address: 'total' }, rewardHistoryArray[lastDayText]['total']);
+    console.log("--------------------------------");
+    console.log(influxMetrics);
+    influx.writePoints(influxMetrics);
 };
 
 module.exports = {
