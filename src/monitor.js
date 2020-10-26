@@ -85,9 +85,8 @@ const getData = async (api) => {
     // const validatorCount = await api.query.staking.validatorCount().then((data) => data.toNumber());
     // polkastake_validator_count.set(validatorCount);
 
-    console.log("--------------------------------");
-    console.log(influxMetrics);
     influx.writePoints(influxMetrics);
+    console.log("metrics written");
 };
 
 module.exports = {

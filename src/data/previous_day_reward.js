@@ -61,7 +61,10 @@ const populateRewardsDay = async (api, addresses, day) => {
 
 const getDailyReward = async (api, addresses, dayText) => {
     if (!rewardHistoryCache[dayText]) {
+        console.log(`fetching daily earning for ${dayText}`);
         await populateRewardsDay(api, addresses, dayText);
+    } else {
+        console.log(`daily earnings for ${dayText} is in cache`);
     }
 
     return rewardHistoryCache[dayText];

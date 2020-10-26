@@ -35,9 +35,9 @@ const schema = [
     {
         measurement: 'reward_last_era',
         fields: {
-            earning: Influx.FieldType.INTEGER,
-            own: Influx.FieldType.INTEGER,
-            total: Influx.FieldType.INTEGER,
+            earning: Influx.FieldType.FLOAT,
+            own: Influx.FieldType.FLOAT,
+            total: Influx.FieldType.FLOAT,
         },
         tags: ['host', 'address'],
     },
