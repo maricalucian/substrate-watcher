@@ -2,6 +2,7 @@ const BN = require('bn.js');
 const { config } = require('../config');
 const moment = require('moment'); // require
 const divider = new BN(config.dividend, 10);
+const { calculateReward } = require('../utils/reward_calculator');
 
 const firstEraDay = moment("2019-10-31");
 
@@ -25,12 +26,16 @@ const getEraReward = async (api, addresses, era) => {
 
     const reward = {};
 
-    addresses.forEach((address) => {
+    for (const address of addresses) {
+        const stakers = await api.query.staking.erasStakers(era, address);
+        const stakeValTotal = stakers.get('total').toBn().div(divider).toNumber() / 1000;
+        const stakeValOwn = stakers.get('own').toBn().div(divider).toNumber() / 1000;
+
         const rewardQuota =
             (rewardPointsLastEra[address] ? rewardPointsLastEra[address] : 0) /
             rewardDataLastEra.get('total').toNumber();
-        reward[address] = (lastEraRewardTotal * rewardQuota) / 10;
-    });
+        reward[address] = calculateReward(stakeValOwn, stakeValTotal, lastEraRewardTotal * rewardQuota);
+    }
     return reward;
 };
 

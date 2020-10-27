@@ -47,7 +47,13 @@ const getData = async (api) => {
         });
     })
 
-    // // const { nonce, data: balance } = await api.query.system.account(config.address);
+    influxMetrics.push({
+        measurement: 'daily_earnings',
+        tags: { host: hostname, address: 'Total' },
+        fields: { ksm: reward['total'] },
+    });
+
+    // const { nonce, data: balance } = await api.query.system.account(config.address);
 
     // reward points active era
     for (const address of addresses) {
@@ -72,7 +78,7 @@ const getData = async (api) => {
     }
 
     // last era reward
-    const rewardsLastEra = await getRewardLastEra(api, activeEra - 1, addresses);
+    const rewardsLastEra = await getRewardLastEra(api, 1453, addresses);
     addresses.forEach(address => {
         influxMetrics.push({
             measurement: 'reward_last_era',
@@ -81,7 +87,6 @@ const getData = async (api) => {
         });
     })
 
-    // validators count
     // const validatorCount = await api.query.staking.validatorCount().then((data) => data.toNumber());
     // polkastake_validator_count.set(validatorCount);
 
