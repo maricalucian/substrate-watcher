@@ -78,7 +78,7 @@ const getData = async (api) => {
     }
 
     // last era reward
-    const rewardsLastEra = await getRewardLastEra(api, 1453, addresses);
+    const rewardsLastEra = await getRewardLastEra(api, activeEra - 1, addresses);
     addresses.forEach(address => {
         influxMetrics.push({
             measurement: 'reward_last_era',
