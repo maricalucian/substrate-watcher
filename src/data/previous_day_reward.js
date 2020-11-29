@@ -54,12 +54,25 @@ const populateRewardsDay = async (api, addresses, day) => {
         });
     }
 
-    let sum = 0;
+    let sum = {};
+    const totalGroups = [];
     addresses.forEach((address) => {
-        sum += dayTotal[address];
+        if(config.total_group[address]) {
+            if(!sum[config.total_group[address]]){
+                sum[config.total_group[address]] = 0;
+            }
+
+            sum[config.total_group[address]] += dayTotal[address];
+
+            if(!totalGroups.includes(config.total_group[address])){
+                totalGroups.push(config.total_group[address]);
+            }
+        }
     });
 
-    dayTotal['total'] = sum;
+    totalGroups.forEach(g => {
+        dayTotal[`total_${g}`] = sum;
+    })
 
     rewardHistoryCache[day] = dayTotal;
 };

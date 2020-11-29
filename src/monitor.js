@@ -38,6 +38,7 @@ const getData = async (api) => {
     const lastDayText = currentEraDate.subtract(1, 'days').format('YYYY-MM-DD');
 
     const reward = await getDailyReward(api, config.addresses, lastDayText);
+    const totalGroups = [];
 
     addresses.forEach(address => {
         influxMetrics.push({
@@ -45,13 +46,23 @@ const getData = async (api) => {
             tags: { host: hostname, address },
             fields: { ksm: reward[address] },
         });
+        if(config.total_group[address]) {
+            if(!totalGroups.includes(config.total_group[address])){
+                totalGroups.push(config.total_group[address]);
+            }
+        }
     })
 
-    influxMetrics.push({
-        measurement: 'daily_earnings',
-        tags: { host: hostname, address: 'Total' },
-        fields: { ksm: reward['total'] },
-    });
+    totalGroups.forEach(g => {
+        if(reward[`total_${g}`]) {
+            influxMetrics.push({
+                measurement: 'daily_earnings',
+                tags: { host: hostname, address: `Total ${g}` },
+                fields: { ksm: reward[`total_${g}`] },
+            });
+        }
+    })
+
 
     // const { nonce, data: balance } = await api.query.system.account(config.address);
 
