@@ -71,7 +71,7 @@ const populateRewardsDay = async (api, addresses, day) => {
     });
 
     totalGroups.forEach(g => {
-        dayTotal[`total_${g}`] = sum;
+        dayTotal[`total_${g}`] = sum[g];
     })
 
     rewardHistoryCache[day] = dayTotal;
