@@ -102,6 +102,7 @@ const getData = async (api) => {
     // polkastake_validator_count.set(validatorCount);
 
     influx.writePoints(influxMetrics);
+    // console.log(influxMetrics)
     console.log("metrics written");
 };
 

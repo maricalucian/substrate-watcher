@@ -24,7 +24,7 @@ const getRewardLastEra = async (api, lastEra, addresses) => {
         const stakeValOwn = stakers.get('own').toBn().div(divider).toNumber() / 1000;
 
         rewards[address] = {
-            earning: calculateReward(stakeValOwn, stakeValTotal, lastEraRewardTotal * rewardQuota),
+            earning: calculateReward(stakeValOwn, stakeValTotal, lastEraRewardTotal * rewardQuota, config.percent),
             own: lastEraRewardTotal * rewardQuota,
             total: lastEraRewardTotal,
         };
