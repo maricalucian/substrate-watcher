@@ -44,7 +44,7 @@ const getData = async (api) => {
         influxMetrics.push({
             measurement: 'daily_earnings',
             tags: { host: hostname, address },
-            fields: { val: reward[address] },
+            fields: { ksm: reward[address] },
         });
         if(config.total_group[address]) {
             if(!totalGroups.includes(config.total_group[address])){
